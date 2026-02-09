@@ -41,6 +41,14 @@ fastify.get('/', async () => {
   };
 });
 
+fastify.get('/', async () => {
+  return { 
+    status: "Public Space API is Live", 
+    message: "Soham Patil's Final Internship Project",
+    database: mongoose.connection.readyState === 1 ? "Connected" : "Error"
+  };
+});
+
 // Seed Route: Resets the app and creates your user
 fastify.get('/seed', async (request, reply) => {
   try {
