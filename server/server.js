@@ -6,11 +6,7 @@ const cors = require('@fastify/cors');
 fastify.register(cors, { origin: "*" });
 
 // --- 2. Schemas ---
-const User = mongoose.model('User', new mongoose.Schema({
-  name: String,
-  friends: [mongoose.Schema.Types.ObjectId]
-}));
-
+const User = mongoose.model('User', new mongoose.Schema({ name: String, friends: [mongoose.Schema.Types.ObjectId] }));
 const Post = mongoose.model('Post', new mongoose.Schema({
   authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   mediaUrl: String,
@@ -18,50 +14,48 @@ const Post = mongoose.model('Post', new mongoose.Schema({
   likes: { type: [mongoose.Schema.Types.ObjectId], default: [] }
 }));
 
-// --- 3. Database Connection ---
-const MONGO_URI = 'mongodb+srv://soham_admin:soham_admin123@cluster0.pbadlee.mongodb.net/publicSpace?retryWrites=true&w=majority';
+// --- 3. THE "BRUTE FORCE" CONNECTION ---
+// We are using the direct shard links. This is the hardest connection for a firewall to block.
+const MONGO_URI = 'mongodb://soham_admin:soham_admin123@ac-pbadlee-shard-00-00.pbadlee.mongodb.net:27017,ac-pbadlee-shard-00-01.pbadlee.mongodb.net:27017,ac-pbadlee-shard-00-02.pbadlee.mongodb.net:27017/publicSpace?ssl=true&replicaSet=atlas-m0p1z3-shard-0&authSource=admin&retryWrites=true&w=majority';
 
-mongoose.connect(MONGO_URI, { family: 4 })
-  .then(() => console.log('🚀 DATABASE CONNECTED SUCCESSFULLY'))
-  .catch(err => console.error('❌ CONNECTION ERROR:', err.message));
+mongoose.connect(MONGO_URI, {
+  serverSelectionTimeoutMS: 5000,
+  family: 4 
+})
+.then(() => console.log('🚀 DATABASE CONNECTED: Handshake Successful'))
+.catch(err => console.error('❌ CONNECTION ERROR:', err.message));
 
 // --- 4. API Routes ---
 
-// Health Check (Use this to prove the server is live)
-fastify.get('/', async () => {
-  return { status: "Backend is Live", database: mongoose.connection.readyState === 1 ? "Connected" : "Connecting..." };
-});
+// Health Check
+fastify.get('/', async () => ({ 
+  status: "Online", 
+  db: mongoose.connection.readyState === 1 ? "Connected" : "Connecting..." 
+}));
 
-// Seed Route (Initializes the app)
-fastify.get('/seed', async (request, reply) => {
+// Seed Route (Fixed: Wait for connection)
+fastify.get('/seed', async (req, reply) => {
+  if (mongoose.connection.readyState !== 1) {
+    return reply.status(503).send({ error: "Database not ready. Refresh in 5 seconds." });
+  }
   try {
     await User.deleteMany({});
-    const user = await User.create({ 
-      name: "Soham Patil", 
-      friends: [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()] 
-    });
-    return { status: "Seeded!", userId: user._id };
+    const user = await User.create({ name: "Soham Patil", friends: [new mongoose.Types.ObjectId()] });
+    return { status: "Success", userId: user._id };
   } catch (e) { return reply.status(500).send({ error: e.message }); }
 });
 
-// Get Feed
-fastify.get('/api/posts', async () => {
-  return await Post.find().populate('authorId', 'name');
+fastify.get('/api/posts', async () => Post.find().populate('authorId', 'name'));
+
+fastify.post('/api/posts', async (req) => {
+  return Post.create({
+    authorId: req.body.userId,
+    mediaUrl: `https://picsum.photos/seed/${Math.random()}/600/400`,
+    caption: req.body.caption
+  });
 });
 
-// Create Post
-fastify.post('/api/posts', async (request, reply) => {
-  try {
-    const { userId, caption } = request.body;
-    return await Post.create({
-      authorId: userId,
-      mediaUrl: `https://picsum.photos/seed/${Math.random()}/600/400`,
-      caption
-    });
-  } catch (err) { return reply.status(500).send({ error: "Server Error" }); }
-});
-
-// --- 5. Start Server ---
+// --- 5. Start ---
 const PORT = process.env.PORT || 5000;
 fastify.listen({ port: PORT, host: '0.0.0.0' }, (err) => {
   if (err) { console.log(err); process.exit(1); }
