@@ -115,4 +115,6 @@ fastify.listen({ port: 5000, host: '0.0.0.0' }, (err) => {
     process.exit(1);
   }
   console.log('✅ Server listening on port 5000');
+
 });
+
