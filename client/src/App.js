@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-// ✅ Your live backend URL
+// ✅ MUST match your Render link exactly
 const API_URL = "https://public-space-app.onrender.com";
 
 function App() {
@@ -10,8 +10,19 @@ function App() {
   const [status, setStatus] = useState({ name: "Loading...", remaining: "..." });
   const [caption, setCaption] = useState("");
 
-  // 1. Function to fetch user details and limits
+  // 1. Fetch Feed Logic
+  const fetchPosts = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/posts`);
+      setPosts(res.data);
+    } catch (err) {
+      console.error("Feed Error:", err);
+    }
+  }, []);
+
+  // 2. Fetch User Data Logic (Fixes your 404)
   const fetchStatus = useCallback(async (id) => {
+    if (!id) return;
     try {
       const res = await axios.get(`${API_URL}/api/user-status/${id}`);
       setStatus(res.data);
@@ -20,17 +31,7 @@ function App() {
     }
   }, []);
 
-  // 2. Function to fetch the post feed
-  const fetchPosts = useCallback(async () => {
-    try {
-      const res = await axios.get(`${API_URL}/api/posts`);
-      setPosts(res.data);
-    } catch (err) {
-      console.error("Feed fetch failed", err);
-    }
-  }, []);
-
-  // 3. Initial Setup: Seed the database and get your User ID
+  // 3. Initial Setup: Connect to Backend and Seed
   useEffect(() => {
     const initApp = async () => {
       try {
@@ -40,13 +41,13 @@ function App() {
         fetchStatus(id);
         fetchPosts();
       } catch (err) {
-        console.error("Initial connection failed", err);
+        console.error("Connection failed", err);
       }
     };
     initApp();
   }, [fetchPosts, fetchStatus]);
 
-  // 4. Create a new post
+  // 4. Create Post
   const handlePost = async () => {
     if (!caption.trim()) return;
     try {
@@ -59,29 +60,29 @@ function App() {
     }
   };
 
-  // 5. Like a post
+  // 5. Like Toggle
   const handleLike = async (postId) => {
     try {
       await axios.post(`${API_URL}/api/posts/${postId}/like`, { userId });
       fetchPosts();
     } catch (err) {
-      console.error("Like failed", err);
+      console.error("Like Error:", err);
     }
   };
 
-  // 6. Delete a post
+  // 6. Delete Post
   const handleDelete = async (postId) => {
     try {
       await axios.delete(`${API_URL}/api/posts/${postId}`);
       fetchPosts();
       fetchStatus(userId);
     } catch (err) {
-      console.error("Delete failed", err);
+      console.error("Delete Error:", err);
     }
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: 'auto', fontFamily: 'Arial' }}>
+    <div style={{ padding: '20px', maxWidth: '600px', margin: 'auto', fontFamily: 'sans-serif' }}>
       <header style={{ textAlign: 'center', marginBottom: '30px' }}>
         <h1>Public Space 📸</h1>
         <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '12px', border: '1px solid #ddd' }}>
@@ -92,7 +93,7 @@ function App() {
       
       <div style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <textarea 
-          placeholder="What's happening?" 
+          placeholder="Write a caption..." 
           value={caption} 
           onChange={(e) => setCaption(e.target.value)}
           style={{ width: '100%', height: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }}
@@ -105,14 +106,14 @@ function App() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {posts.map(post => (
-          <div key={post._id} style={{ border: '1px solid #eee', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+          <div key={post._id} style={{ border: '1px solid #eee', borderRadius: '12px', overflow: 'hidden' }}>
             <img src={post.mediaUrl} alt="Post" style={{ width: '100%' }} />
             <div style={{ padding: '15px' }}>
               <p><strong>{post.authorId?.name}:</strong> {post.caption}</p>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <button onClick={() => handleLike(post._id)} style={{ cursor: 'pointer' }}>
+                <button onClick={() => handleLike(post._id)} style={{ cursor: 'pointer', borderRadius: '5px', padding: '5px 10px' }}>
                   ❤️ {post.likes?.length || 0}
                 </button>
                 <button onClick={() => handleDelete(post._id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>
