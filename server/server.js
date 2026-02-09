@@ -14,7 +14,8 @@ const Post = mongoose.model('Post', new mongoose.Schema({
   likes: { type: [mongoose.Schema.Types.ObjectId], default: [] }
 }));
 
-// --- 3. Database Connection (Standard Driver Format) ---
+// --- 3. Database Connection ---
+// Using your credentials: soham_admin / soham_admin123
 const MONGO_URI = 'mongodb+srv://soham_admin:soham_admin123@cluster0.pbadlee.mongodb.net/publicSpace?retryWrites=true&w=majority';
 
 mongoose.connect(MONGO_URI)
@@ -23,48 +24,36 @@ mongoose.connect(MONGO_URI)
 
 // --- 4. API Routes ---
 
-// Root Route - Proves server is ALIVE
+// ✅ THIS FIXES THE 404 ERROR
 fastify.get('/', async () => {
   return { 
     message: "Public Space API is Live!", 
-    dbStatus: mongoose.connection.readyState === 1 ? "Connected" : "Connecting..." 
+    database: mongoose.connection.readyState === 1 ? "Connected" : "Connecting..." 
   };
 });
 
-// Seed Route - Creates the first user
-fastify.get('/seed', async (request, reply) => {
+// Seed Route
+fastify.get('/seed', async (req, reply) => {
   try {
-    if (mongoose.connection.readyState !== 1) {
-      return reply.status(503).send({ error: "Database not ready. Wait 5 seconds and refresh." });
-    }
     await User.deleteMany({});
-    const user = await User.create({ 
-      name: "Soham Patil", 
-      friends: [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()] 
-    });
+    const user = await User.create({ name: "Soham Patil", friends: [new mongoose.Types.ObjectId()] });
     return { status: "Seeded!", userId: user._id };
-  } catch (e) { 
-    return reply.status(500).send({ error: e.message }); 
-  }
+  } catch (e) { return reply.status(500).send({ error: e.message }); }
 });
 
-fastify.get('/api/posts', async () => await Post.find().populate('authorId', 'name').sort({ createdAt: -1 }));
+fastify.get('/api/posts', async () => await Post.find().populate('authorId', 'name'));
 
-fastify.post('/api/posts', async (request) => {
-  const { userId, caption } = request.body;
+fastify.post('/api/posts', async (req) => {
   return await Post.create({
-    authorId: userId,
+    authorId: req.body.userId,
     mediaUrl: `https://picsum.photos/seed/${Math.random()}/600/400`,
-    caption
+    caption: req.body.caption
   });
 });
 
 // --- 5. Start Server ---
 const PORT = process.env.PORT || 5000;
 fastify.listen({ port: PORT, host: '0.0.0.0' }, (err) => {
-  if (err) {
-    console.log(err);
-    process.exit(1);
-  }
+  if (err) { console.log(err); process.exit(1); }
   console.log(`✅ Backend listening on port ${PORT}`);
 });
