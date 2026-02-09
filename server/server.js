@@ -14,42 +14,52 @@ const Post = mongoose.model('Post', new mongoose.Schema({
   likes: { type: [mongoose.Schema.Types.ObjectId], default: [] }
 }));
 
-// --- 3. THE "FORCE CONNECT" STRING ---
-// Using your exact credentials and adding the database name 'publicSpace'
-const MONGO_URI = 'mongodb+srv://soham_admin:soham_admin123@cluster0.pbadlee.mongodb.net/publicSpace?retryWrites=true&w=majority';
+// --- 3. THE CORRECTED CONNECTION STRING ---
+// ✅ Using your verified hostname: r3hqnt8
+const MONGO_URI = 'mongodb+srv://soham_admin:soham_admin123@cluster0.r3hqnt8.mongodb.net/publicSpace?retryWrites=true&w=majority';
 
 mongoose.connect(MONGO_URI, {
-  dbName: 'publicSpace', // ✅ Specific DB name to prevent auto-selection errors
-  connectTimeoutMS: 30000, // ✅ 30 seconds to survive Render's slow startup
-  serverSelectionTimeoutMS: 30000,
+  serverSelectionTimeoutMS: 5000,
   family: 4 
 })
-  .then(() => console.log('🚀 100% SUCCESS: DATABASE CONNECTED'))
+  .then(() => console.log('🚀 DATABASE CONNECTED SUCCESSFULLY!'))
   .catch(err => console.error('❌ MONGODB ERROR:', err.message));
 
 // --- 4. API Routes ---
 
-// Proof of life route
+// Health Check
 fastify.get('/', async () => ({ 
   message: "Soham Patil's Public Space API is Live!", 
   dbStatus: mongoose.connection.readyState === 1 ? "Connected" : "Error" 
 }));
 
-// Seed Route (Wait for DB)
-fastify.get('/seed', async (req, reply) => {
+// Seed Route (Initializes the app)
+fastify.get('/seed', async (request, reply) => {
   if (mongoose.connection.readyState !== 1) {
-    return reply.status(503).send({ error: "DB Connecting... refresh in 10 seconds" });
+    return reply.status(503).send({ error: "Database not connected yet. Please refresh." });
   }
   try {
     await User.deleteMany({});
+    await Post.deleteMany({});
     const user = await User.create({ name: "Soham Patil", friends: [new mongoose.Types.ObjectId()] });
-    return { status: "Seeded Successfully!", userId: user._id };
+    return { status: "Seeded!", userId: user._id };
   } catch (e) { return reply.status(500).send({ error: e.message }); }
 });
 
-fastify.get('/api/posts', async () => Post.find().populate('authorId', 'name'));
+// Post Logic
+fastify.post('/api/posts', async (request) => {
+  const { userId, caption } = request.body;
+  return await Post.create({
+    authorId: userId,
+    mediaUrl: `https://picsum.photos/seed/${Math.random()}/600/400`,
+    caption
+  });
+});
 
-// --- 5. Listen ---
+// Feed Logic
+fastify.get('/api/posts', async () => await Post.find().populate('authorId', 'name'));
+
+// --- 5. Start Server ---
 const PORT = process.env.PORT || 10000;
 fastify.listen({ port: PORT, host: '0.0.0.0' }, (err) => {
   if (err) { console.log(err); process.exit(1); }
