@@ -21,20 +21,25 @@ const Post = mongoose.model('Post', new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }));
 
-// --- 2. Setup (CRITICAL FIX FOR DELETE ERROR) ---
+// --- 2. Setup ---
 fastify.register(cors, { 
   origin: "*", 
-  methods: ["GET", "POST", "PUT", "DELETE"], // MUST include DELETE here
+  methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type"]
 });
 
-mongoose.connect('mongodb://127.0.0.1:27017/publicSpace')
-  .then(() => console.log(' MongoDB Connected'))
-  .catch(err => console.error(' Connection Error:', err));
+// ✅ UPDATED WITH YOUR CREDENTIALS
+// Using soham_admin and soham_admin123
+const MONGO_URI = 'mongodb+srv://soham_admin:soham_admin123@cluster0.pbadlee.mongodb.net/publicSpace?retryWrites=true&w=majority';
+
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('🚀 Connected to MongoDB Atlas'))
+  .catch(err => {
+    console.error('❌ Atlas Connection Error:', err.message);
+  });
 
 // --- 3. API Routes ---
 
-// Get Status
 fastify.get('/api/user-status/:userId', async (request) => {
   const user = await User.findById(request.params.userId);
   if (!user) return { error: "Not found" };
@@ -49,16 +54,16 @@ fastify.get('/api/user-status/:userId', async (request) => {
   };
 });
 
-// Feed
 fastify.get('/api/posts', async () => {
   return await Post.find().populate('authorId', 'name').sort({ createdAt: -1 });
 });
 
-// Post with Logic
 fastify.post('/api/posts', async (request, reply) => {
   try {
     const { userId, caption } = request.body;
     const user = await User.findById(userId);
+    if (!user) return reply.status(404).send({ error: "User not found" });
+
     const postsToday = await Post.countDocuments({ authorId: userId, createdAt: { $gte: new Date().setHours(0,0,0,0) }});
 
     if (user.friends.length <= 10 && postsToday >= user.friends.length) {
@@ -73,7 +78,6 @@ fastify.post('/api/posts', async (request, reply) => {
   } catch (err) { return reply.status(500).send({ error: "Server Error" }); }
 });
 
-// Like Toggle
 fastify.post('/api/posts/:id/like', async (request) => {
   const post = await Post.findById(request.params.id);
   const { userId } = request.body;
@@ -82,7 +86,6 @@ fastify.post('/api/posts/:id/like', async (request) => {
   return { success: true };
 });
 
-// Comment
 fastify.post('/api/posts/:id/comment', async (request) => {
   const post = await Post.findById(request.params.id);
   post.comments.push(request.body); 
@@ -90,23 +93,26 @@ fastify.post('/api/posts/:id/comment', async (request) => {
   return { success: true };
 });
 
-// Delete (The route causing the Network Error)
 fastify.delete('/api/posts/:id', async (request, reply) => {
   try {
-    const { id } = request.params;
-    await Post.findByIdAndDelete(id);
+    await Post.findByIdAndDelete(request.params.id);
     return { success: true };
   } catch (err) {
     return reply.status(500).send({ error: "Could not delete" });
   }
 });
 
-// Seed
 fastify.get('/seed', async () => {
   await User.deleteMany({});
   await Post.deleteMany({});
-  const user = await User.create({ name: "Soham Patil", friends: Array(3).fill(new mongoose.Types.ObjectId()) });
+  const user = await User.create({ name: "Soham Patil", friends: [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()] });
   return { userId: user._id };
 });
 
-fastify.listen({ port: 5000 });
+fastify.listen({ port: 5000, host: '0.0.0.0' }, (err) => {
+  if (err) {
+    console.log(err);
+    process.exit(1);
+  }
+  console.log('✅ Server listening on port 5000');
+});
