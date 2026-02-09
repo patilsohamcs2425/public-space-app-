@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-// ✅ YOUR LIVE RENDER URL
+// ✅ Your live backend URL
 const API_URL = "https://public-space-app.onrender.com";
 
 function App() {
@@ -10,48 +10,43 @@ function App() {
   const [status, setStatus] = useState({ name: "Loading...", remaining: "..." });
   const [caption, setCaption] = useState("");
 
-  // 1. Fetch Posts Logic
+  // 1. Function to fetch user details and limits
+  const fetchStatus = useCallback(async (id) => {
+    try {
+      const res = await axios.get(`${API_URL}/api/user-status/${id}`);
+      setStatus(res.data);
+    } catch (err) {
+      console.error("Status check failed", err);
+    }
+  }, []);
+
+  // 2. Function to fetch the post feed
   const fetchPosts = useCallback(async () => {
     try {
       const res = await axios.get(`${API_URL}/api/posts`);
       setPosts(res.data);
     } catch (err) {
-      console.error("Fetch Posts Error:", err);
+      console.error("Feed fetch failed", err);
     }
   }, []);
 
-  // 2. Fetch User Status Logic
-  const fetchStatus = useCallback(async (id) => {
-    if (!id) return;
-    try {
-      const res = await axios.get(`${API_URL}/api/user-status/${id}`);
-      setStatus(res.data);
-    } catch (err) {
-      console.error("Fetch Status Error:", err);
-    }
-  }, []);
-
-  // 3. Initial App Setup (Seeding and Getting User)
+  // 3. Initial Setup: Seed the database and get your User ID
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Connect to backend and get/create user
         const res = await axios.get(`${API_URL}/seed`);
-        const newUserId = res.data.userId;
-        setUserId(newUserId);
-        
-        // Load initial content
+        const id = res.data.userId;
+        setUserId(id);
+        fetchStatus(id);
         fetchPosts();
-        fetchStatus(newUserId);
       } catch (err) {
-        console.error("Connection Error:", err);
-        alert("Server is starting up. Please refresh in 30 seconds.");
+        console.error("Initial connection failed", err);
       }
     };
     initApp();
   }, [fetchPosts, fetchStatus]);
 
-  // 4. Handle Creating a New Post
+  // 4. Create a new post
   const handlePost = async () => {
     if (!caption.trim()) return;
     try {
@@ -60,44 +55,44 @@ function App() {
       fetchPosts();
       fetchStatus(userId);
     } catch (err) {
-      alert(err.response?.data?.error || "Error creating post");
+      alert(err.response?.data?.error || "Post failed");
     }
   };
 
-  // 5. Handle Liking a Post
+  // 5. Like a post
   const handleLike = async (postId) => {
     try {
       await axios.post(`${API_URL}/api/posts/${postId}/like`, { userId });
-      fetchPosts(); // Refresh to update like count
+      fetchPosts();
     } catch (err) {
-      console.error("Like Error:", err);
+      console.error("Like failed", err);
     }
   };
 
-  // 6. Handle Deleting a Post
+  // 6. Delete a post
   const handleDelete = async (postId) => {
     try {
       await axios.delete(`${API_URL}/api/posts/${postId}`);
-      fetchPosts(); // Refresh to remove from UI
-      fetchStatus(userId); // Refresh limit count
+      fetchPosts();
+      fetchStatus(userId);
     } catch (err) {
-      console.error("Delete Error:", err);
+      console.error("Delete failed", err);
     }
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '600px', margin: 'auto', fontFamily: 'Arial, sans-serif' }}>
-      <header style={{ textAlign: 'center', marginBottom: '40px' }}>
+    <div style={{ padding: '20px', maxWidth: '600px', margin: 'auto', fontFamily: 'Arial' }}>
+      <header style={{ textAlign: 'center', marginBottom: '30px' }}>
         <h1>Public Space 📸</h1>
-        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '12px', border: '1px solid #eee' }}>
+        <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '12px', border: '1px solid #ddd' }}>
           <p><strong>Welcome:</strong> {status.name}</p>
-          <p><strong>Daily Limit:</strong> {status.remaining}</p>
+          <p><strong>Remaining Posts:</strong> {status.remaining}</p>
         </div>
       </header>
       
       <div style={{ marginBottom: '30px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <textarea 
-          placeholder="Share something with the world..." 
+          placeholder="What's happening?" 
           value={caption} 
           onChange={(e) => setCaption(e.target.value)}
           style={{ width: '100%', height: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }}
@@ -112,28 +107,21 @@ function App() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
         {posts.map(post => (
-          <div key={post._id} style={{ border: '1px solid #eee', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            <img src={post.mediaUrl} alt="User content" style={{ width: '100%', display: 'block' }} />
+          <div key={post._id} style={{ border: '1px solid #eee', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+            <img src={post.mediaUrl} alt="Post" style={{ width: '100%' }} />
             <div style={{ padding: '15px' }}>
-              <p style={{ margin: '0 0 10px 0' }}><strong>{post.authorId?.name || 'User'}:</strong> {post.caption}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button 
-                  onClick={() => handleLike(post._id)}
-                  style={{ background: '#fff0f0', border: '1px solid #ffc1c1', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer' }}
-                >
+              <p><strong>{post.authorId?.name}:</strong> {post.caption}</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <button onClick={() => handleLike(post._id)} style={{ cursor: 'pointer' }}>
                   ❤️ {post.likes?.length || 0}
                 </button>
-                <button 
-                  onClick={() => handleDelete(post._id)} 
-                  style={{ background: 'none', border: 'none', color: '#ff4d4d', cursor: 'pointer', fontSize: '14px' }}
-                >
-                  Delete Post
+                <button onClick={() => handleDelete(post._id)} style={{ color: 'red', border: 'none', background: 'none', cursor: 'pointer' }}>
+                  Delete
                 </button>
               </div>
             </div>
           </div>
         ))}
-        {posts.length === 0 && <p style={{ textAlign: 'center', color: '#888' }}>No posts yet. Be the first!</p>}
       </div>
     </div>
   );
