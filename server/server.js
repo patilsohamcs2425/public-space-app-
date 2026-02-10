@@ -2,8 +2,7 @@ const fastify = require('fastify')({ logger: true });
 const mongoose = require('mongoose');
 const cors = require('@fastify/cors');
 
-// --- 1. Middleware ---
-// Allows your Vercel frontend to communicate with this Render backend
+// --- 1. Middleware (Crucial for Vercel) ---
 fastify.register(cors, { 
   origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE"]
@@ -19,13 +18,13 @@ const Post = mongoose.model('Post', new mongoose.Schema({
   authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   mediaUrl: String,
   caption: String,
-  likes: { type: [String], default: [] }, // Stores User IDs of people who liked
+  likes: { type: [String], default: [] },
   createdAt: { type: Date, default: Date.now }
 }));
 
 // --- 3. Database Connection ---
-// Using your verified cluster URI
-const MONGO_URI = 'mongodb+srv://soham_admin:soham_admin123@cluster0.r3hqnt8.mongodb.net/publicSpace?retryWrites=true&w=majority';
+// ✅ Using your verified cluster: r3hqnt8
+const MONGO_URI = 'mongodb+srv://soham_admin:soham_admin123@cluster0.r3hqnt8.mongodb.net/publicSpace?retryWrites=true&w=majority&appName=Cluster0';
 
 mongoose.connect(MONGO_URI, { family: 4 })
   .then(() => console.log('🚀 DATABASE CONNECTED SUCCESSFULLY'))
@@ -33,46 +32,41 @@ mongoose.connect(MONGO_URI, { family: 4 })
 
 // --- 4. API Routes ---
 
-// Root route to verify server status
-fastify.get('/', async () => {
-  return { 
-    message: "Soham Patil's Public Space API is Live!", 
-    dbStatus: mongoose.connection.readyState === 1 ? "Connected" : "Connecting..." 
-  };
-});
-
+// ✅ ROOT ROUTE (ONLY ONE ALLOWED)
 fastify.get('/', async () => {
   return { 
     status: "Public Space API is Live", 
     message: "Soham Patil's Final Internship Project",
-    database: mongoose.connection.readyState === 1 ? "Connected" : "Error"
+    dbStatus: mongoose.connection.readyState === 1 ? "Connected" : "Connecting..." 
   };
 });
 
-// Seed Route: Resets the app and creates your user
+// ✅ SEED ROUTE (Resets DB for demo)
 fastify.get('/seed', async (request, reply) => {
   try {
     await User.deleteMany({});
     await Post.deleteMany({});
+    
+    // Create User
     const user = await User.create({ 
       name: "Soham Patil", 
       friends: [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()] 
     });
     
-    // Create an initial post so the feed isn't empty
+    // Create Initial Post
     await Post.create({
       authorId: user._id,
       mediaUrl: "https://picsum.photos/seed/public/600/400",
       caption: "Welcome to the Public Space! Project Finalized."
     });
 
-    return { userId: user._id };
+    return { userId: user._id, status: "Seeded" };
   } catch (e) {
     return reply.status(500).send({ error: e.message });
   }
 });
 
-// User Status: Fixes the 404 error by providing name and limits
+// ✅ USER STATUS (Fixes 404 on frontend)
 fastify.get('/api/user-status/:userId', async (request, reply) => {
   try {
     const user = await User.findById(request.params.userId);
@@ -93,12 +87,12 @@ fastify.get('/api/user-status/:userId', async (request, reply) => {
   }
 });
 
-// Feed: Returns all posts with author names
+// ✅ GET POSTS
 fastify.get('/api/posts', async () => {
   return await Post.find().populate('authorId', 'name').sort({ createdAt: -1 });
 });
 
-// Create Post: Handles new image posts
+// ✅ CREATE POST
 fastify.post('/api/posts', async (request) => {
   const { userId, caption } = request.body;
   return await Post.create({
@@ -108,7 +102,7 @@ fastify.post('/api/posts', async (request) => {
   });
 });
 
-// Like/Unlike Logic: Toggles user ID in the likes array
+// ✅ LIKE POST
 fastify.post('/api/posts/:id/like', async (request) => {
   const post = await Post.findById(request.params.id);
   const { userId } = request.body;
@@ -123,14 +117,13 @@ fastify.post('/api/posts/:id/like', async (request) => {
   return { success: true };
 });
 
-// Delete Logic: Removes post from MongoDB
+// ✅ DELETE POST
 fastify.delete('/api/posts/:id', async (request) => {
   await Post.findByIdAndDelete(request.params.id);
   return { success: true };
 });
 
 // --- 5. Start Server ---
-// Uses Render's default port or 10000
 const PORT = process.env.PORT || 10000;
 fastify.listen({ port: PORT, host: '0.0.0.0' }, (err) => {
   if (err) {
